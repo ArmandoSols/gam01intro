@@ -52,7 +52,9 @@ header{background:var(--ink);color:var(--paper);padding:1.1rem 2rem;display:flex
 .progress-fill{height:100%;background:var(--teal);border-radius:10px;transition:width .4s ease}
 .clues-container{display:flex;flex-direction:column;gap:.85rem}
 .clue-row{background:var(--cream);border:2px solid #ddd;border-radius:4px;padding:.9rem 1rem;display:grid;grid-template-columns:auto 1fr auto;gap:.8rem;align-items:center;transition:border-color .3s,background .3s}
-.clue-row.correct{border-color:var(--teal);background:rgba(26,122,110,.07)}
+.clue-row.nearly{border-color:#f0c040;background:rgba(240,192,64,.08)}
+.clue-row.nearly .clue-num{background:#c9941a}
+.feedback.warn{color:#856404;font-weight:600}
 .clue-row.wrong{border-color:var(--red);background:rgba(192,57,43,.05)}
 .clue-row.exhausted{border-color:#aaa;background:#f5f5f5}
 .clue-num{font-family:'DM Mono',monospace;font-size:.7rem;background:var(--ink);color:white;padding:.15rem .45rem;border-radius:2px;min-width:24px;text-align:center;flex-shrink:0;align-self:start;margin-top:2px}
@@ -193,7 +195,7 @@ header{background:var(--ink);color:var(--paper);padding:1.1rem 2rem;display:flex
 <script>
 const CLUES=[{"id":1,"word":"PREIMAGEN","clue":"Nombre de la variable independiente en una función."},{"id":2,"word":"ECUACIONLINEAL","clue":"Nombre de una ecuación polinómica de primer grado."},{"id":3,"word":"FUNCION","clue":"Nombre de la relación matemática entre dos conjuntos donde a cada elemento del primer conjunto le corresponde exactamente un elemento del segundo conjunto."},{"id":4,"word":"ECUACIONCUADRATICA","clue":"Nombre de una ecuación polinómica de segundo grado."},{"id":5,"word":"CONJUGADO","clue":"Nombre del factor de racionalización que se utiliza para simplificar fracciones que involucran sumas o restas con términos que contienen raíces cuadradas."},{"id":6,"word":"POLINOMIOCUADRATICO","clue":"Nombre general de un polinomio de segundo grado."},{"id":7,"word":"FACTORIZACION","clue":"Primer procedimiento que se realiza para aplicar una división o multiplicación de fracciones algebraicas."},{"id":8,"word":"RACIONALIZACION","clue":"Proceso de eliminar raíces cuadradas o cúbicas en el denominador de una fracción."},{"id":9,"word":"FACTORIZACION","clue":"Proceso de encontrar las raíces de un polinomio, expresándolo a través de un producto de factores."},{"id":10,"word":"SIMPLIFICACION","clue":"Proceso de reducir una fracción algebraica dividiendo el numerador y el denominador por sus factores comunes."},{"id":11,"word":"CONJUNTOVACIO","clue":"Término que describe el conjunto solución de una ecuación polinómica que no tiene soluciones reales."},{"id":12,"word":"REALES","clue":"Conjunto solución de una ecuación lineal cuando se llega a una identidad."},{"id":13,"word":"GRADO","clue":"Término que describe la suma de los exponentes en un monomio."},{"id":14,"word":"DIVISIONSINTETICA","clue":"Nombre de la factorización que se utiliza en polinomios de grado mayor a dos."},{"id":15,"word":"ECUACION","clue":"Nombre de la igualdad que se plantea para determinar los ceros de un polinomio."}];
 const PTS=10;
-const SCRIPT_URL="https://script.google.com/macros/s/AKfycbzJflg2uTcyzS2dJPB2wQw-keJE94tQg6ux0aym2oB_YivZc0cG-O-4tslyReIpvNlqKQ/exec";
+const SCRIPT_URL="https://script.google.com/macros/s/AKfycbxGdtB-XdlZxKrCwxkLDa2k9AYnr3mNscYbvUQGYx70mAeZ6IOdkmKZt8oP9N7WgwEpnQ/exec";
 const CURSO="Introducción al Cálculo";
 const CURSO_CORTO = {
   'Introducción al Cálculo': 'Intro',
@@ -260,7 +262,19 @@ function buildGrid(rng){
       const er=r+dr*(len-1),ec=c+dc*(len-1);
       if(er<0||er>=GSIZE||ec<0||ec>=GSIZE)continue;
       let can=true;
-      for(let i=0;i<len;i++){const nr=r+dr*i,nc=c+dc*i;if(g[nr][nc]!==''&&g[nr][nc]!==item.word[i]){can=false;break}}
+      // Check cells of the word
+      for(let i=0;i<len;i++){
+        const nr=r+dr*i,nc=c+dc*i;
+        if(g[nr][nc]!==''&&g[nr][nc]!==item.word[i]){can=false;break}
+      }
+      if(!can)continue;
+      // Check buffer cell BEFORE the word (avoid joining with previous word)
+      const br=r-dr, bc=c-dc;
+      if(br>=0&&br<GSIZE&&bc>=0&&bc<GSIZE&&g[br][bc]!==''){can=false;}
+      if(!can)continue;
+      // Check buffer cell AFTER the word (avoid joining with next word)
+      const ar=er+dr, ac=ec+dc;
+      if(ar>=0&&ar<GSIZE&&ac>=0&&ac<GSIZE&&g[ar][ac]!==''){can=false;}
       if(!can)continue;
       const cells=[];
       for(let i=0;i<len;i++){const nr=r+dr*i,nc=c+dc*i;g[nr][nc]=item.word[i];cells.push([nr,nc])}
@@ -338,7 +352,7 @@ function startActivity(){
   // 2. Shuffle the final clue order
   activeClues = seededShuffle(pickedClues, rng).map((c,i)=>({...c, displayId:i+1}));
 
-  activeClues.forEach(c=>{answers[c.displayId]={attempts:[],correct:false,attemptsUsed:0,word:c.word};});
+  activeClues.forEach(c=>{answers[c.displayId]={attempts:[],correct:false,attemptsUsed:0,word:c.word,nearlyCorrect:false};});
 
   document.getElementById('disp-nombre').textContent=nombreCompleto;
   document.getElementById('disp-dia').textContent=dia;
@@ -389,6 +403,14 @@ function renderClues(){
   });
 }
 
+function levenshtein(a,b){
+  const m=a.length,n=b.length;
+  const dp=Array.from({length:m+1},(_,i)=>Array.from({length:n+1},(_,j)=>i===0?j:j===0?i:0));
+  for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)
+    dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]:1+Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1]);
+  return dp[m][n];
+}
+
 function submitAnswer(id){
   if(submitted)return;
   const state=answers[id];
@@ -397,28 +419,47 @@ function submitAnswer(id){
   const val=input.value.trim().toUpperCase().replace(/\s/g,'');
   if(!val)return;
   const correct=state.word;
-  state.attemptsUsed++;state.attempts.push(val);
-  const dotEl=document.getElementById(`dot-${id}-${state.attemptsUsed}`);
   const fbEl=document.getElementById(`fb-${id}`);
   const row=document.getElementById(`row-${id}`);
   const ansEl=document.getElementById(`ans-${id}`);
+
   if(val===correct){
+    // ✅ Correct
     state.correct=true;
-    dotEl.className='attempt-dot correct';
-    fbEl.textContent=state.attemptsUsed===1?'✓ ¡Correcto!':'✓ Correcto';
-    fbEl.className='feedback ok';row.className='clue-row correct';
+    state.attempts.push(val);
+    state.earnedPts = PTS;
+    const dotEl=document.getElementById(`dot-${id}-${state.attemptsUsed+1}`);
+    if(dotEl) dotEl.className='attempt-dot correct';
+    fbEl.textContent='✓ ¡Correcto!';
+    fbEl.className='feedback ok';
+    row.className='clue-row correct';
     ansEl.textContent=correct;ansEl.className='clue-answer';
     input.disabled=true;document.getElementById(`btn-${id}`).disabled=true;
     highlightWord(correct);
-  }else{
-    dotEl.className='attempt-dot wrong';
+  } else if(!state.nearlyCorrect && (levenshtein(val,correct)===1 || correct.includes(val))){
+    // 🟡 Nearly correct — first and only warning, no attempt consumed, no penalty
+    state.nearlyCorrect=true;
+    fbEl.textContent='⚠ Casi correcto, revisá la palabra en la sopa de letras';
+    fbEl.className='feedback warn';
+    row.className='clue-row nearly';
+    input.style.background='#fff9c4';
+    input.select();input.focus();
+    return;
+  } else {
+    // ✗ Wrong — consume attempt
+    state.attemptsUsed++;
+    state.attempts.push(val);
+    const dotEl=document.getElementById(`dot-${id}-${state.attemptsUsed}`);
+    if(dotEl) dotEl.className='attempt-dot wrong';
     if(state.attemptsUsed>=2){
       fbEl.textContent='✗ Agotaste los intentos';fbEl.className='feedback bad';
       row.className='clue-row exhausted';
       input.disabled=true;document.getElementById(`btn-${id}`).disabled=true;
     }else{
       fbEl.textContent='✗ Incorrecto, intenta de nuevo';fbEl.className='feedback bad';
-      row.className='clue-row wrong';input.select();input.focus();
+      row.className='clue-row wrong';
+      input.style.background='';
+      input.select();input.focus();
     }
   }
   updateProgress();
@@ -432,6 +473,21 @@ function updateProgress(){
   document.getElementById('prog-fill').style.width=`${(done/total)*100}%`;
 }
 
+// Calculates current score based on answers so far
+function calcScore(){
+  const scoredWords = new Set();
+  let raw = 0;
+  activeClues.forEach(item=>{
+    if(scoredWords.has(item.word)) return;
+    scoredWords.add(item.word);
+    const cluesForWord = activeClues.filter(c=>c.word===item.word);
+    const anyCorrect = cluesForWord.find(c=>answers[c.displayId].correct);
+    if(anyCorrect) raw += PTS;
+  });
+  const uniqueWordCount = scoredWords.size;
+  return uniqueWordCount > 0 ? Math.min(100, Math.round((raw/(uniqueWordCount*PTS))*100)) : 0;
+}
+
 // Builds the progress payload and sends it to Sheets (fire-and-forget)
 function syncProgress(tipo='progreso', score=null){
   if(!SCRIPT_URL) return;
@@ -442,6 +498,7 @@ function syncProgress(tipo='progreso', score=null){
 
   const correctas = Object.values(answers).filter(a=>a.correct).length;
   const respondidas = Object.values(answers).filter(a=>a.correct||a.attemptsUsed>=2).length;
+  const scoreToSend = score !== null ? score : calcScore();
 
   const detalle = Object.fromEntries(activeClues.map(item=>[
     item.word,{
@@ -462,7 +519,7 @@ function syncProgress(tipo='progreso', score=null){
     progreso: respondidas+'/'+activeClues.length,
     correctas,
     tiempoUsado,
-    score:    score !== null ? score : '',
+    score:    scoreToSend,
     fecha:    new Date().toLocaleString('es-CR',{timeZone:'America/Costa_Rica'}),
     answers:  detalle
   };
@@ -491,24 +548,7 @@ async function submitActivity(timeUp=false){
   });
   activeClues.forEach(item=>{if(answers[item.displayId].correct)highlightWord(item.word);});
   submitted=true;
-  let raw=0,c1=0,c2=0,wrong=0;
-  // Use unique words for scoring — a word with 2 clues counts as 1 correct/wrong
-  const scoredWords = new Set();
-  activeClues.forEach(item=>{
-    if(scoredWords.has(item.word)) return; // skip duplicate word already scored
-    scoredWords.add(item.word);
-    // Find if ANY clue for this word was answered correctly
-    const cluesForWord = activeClues.filter(c=>c.word===item.word);
-    const anyCorrect = cluesForWord.find(c=>answers[c.displayId].correct);
-    if(anyCorrect){
-      raw+=PTS;
-      if(answers[anyCorrect.displayId].attemptsUsed===1) c1++; else c2++;
-    } else {
-      wrong++;
-    }
-  });
-  const uniqueWordCount = scoredWords.size;
-  const score=Math.min(100,Math.round((raw/(uniqueWordCount*PTS))*100));
+  const score = calcScore();
   const box=document.getElementById('score-box');
   box.style.display='block';
   document.getElementById('final-score').textContent=score;
