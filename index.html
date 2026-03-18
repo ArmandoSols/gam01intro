@@ -195,7 +195,7 @@ header{background:var(--ink);color:var(--paper);padding:1.1rem 2rem;display:flex
 <script>
 const CLUES=[{"id":1,"word":"PREIMAGEN","clue":"Nombre de la variable independiente en una función."},{"id":2,"word":"ECUACIONLINEAL","clue":"Nombre de una ecuación polinómica de primer grado."},{"id":3,"word":"FUNCION","clue":"Nombre de la relación matemática entre dos conjuntos donde a cada elemento del primer conjunto le corresponde exactamente un elemento del segundo conjunto."},{"id":4,"word":"ECUACIONCUADRATICA","clue":"Nombre de una ecuación polinómica de segundo grado."},{"id":5,"word":"CONJUGADO","clue":"Nombre del factor de racionalización que se utiliza para simplificar fracciones que involucran sumas o restas con términos que contienen raíces cuadradas."},{"id":6,"word":"POLINOMIOCUADRATICO","clue":"Nombre general de un polinomio de segundo grado."},{"id":7,"word":"FACTORIZACION","clue":"Primer procedimiento que se realiza para aplicar una división o multiplicación de fracciones algebraicas."},{"id":8,"word":"RACIONALIZACION","clue":"Proceso de eliminar raíces cuadradas o cúbicas en el denominador de una fracción."},{"id":9,"word":"FACTORIZACION","clue":"Proceso de encontrar las raíces de un polinomio, expresándolo a través de un producto de factores."},{"id":10,"word":"SIMPLIFICACION","clue":"Proceso de reducir una fracción algebraica dividiendo el numerador y el denominador por sus factores comunes."},{"id":11,"word":"CONJUNTOVACIO","clue":"Término que describe el conjunto solución de una ecuación polinómica que no tiene soluciones reales."},{"id":12,"word":"REALES","clue":"Conjunto solución de una ecuación lineal cuando se llega a una identidad."},{"id":13,"word":"GRADO","clue":"Término que describe la suma de los exponentes en un monomio."},{"id":14,"word":"DIVISIONSINTETICA","clue":"Nombre de la factorización que se utiliza en polinomios de grado mayor a dos."},{"id":15,"word":"ECUACION","clue":"Nombre de la igualdad que se plantea para determinar los ceros de un polinomio."}];
 const PTS=10;
-const SCRIPT_URL="https://script.google.com/macros/s/AKfycbxGdtB-XdlZxKrCwxkLDa2k9AYnr3mNscYbvUQGYx70mAeZ6IOdkmKZt8oP9N7WgwEpnQ/exec";
+const SCRIPT_URL="https://script.google.com/macros/s/AKfycbx4McV4iv7uRhzrLFB-EV5ihTiFX5zJe2_hs1wuGRjxSnyBOX5xdi4EWOSNKNmsIGDUww/exec";
 const CURSO="Introducción al Cálculo";
 const CURSO_CORTO = {
   'Introducción al Cálculo': 'Intro',
@@ -563,12 +563,15 @@ async function submitActivity(timeUp=false){
   const saveEl=document.getElementById('score-save');
   if(!SCRIPT_URL){saveEl.textContent='⚠ Resultado no guardado (sin Google Sheets configurado).';return;}
   saveEl.textContent='⏳ Guardando en Google Sheets…';
-  try{
-    syncProgress('final', score);
-    saveEl.textContent='✅ Resultado guardado en Google Sheets.';
-  }catch(err){
-    saveEl.textContent='❌ Error al guardar. Avisa a tu docente.';
-  }
+  // Wait 1.5s to ensure any in-flight 'progreso' requests arrive before 'final'
+  setTimeout(()=>{
+    try{
+      syncProgress('final', score);
+      saveEl.textContent='✅ Resultado guardado en Google Sheets.';
+    }catch(err){
+      saveEl.textContent='❌ Error al guardar. Avisa a tu docente.';
+    }
+  }, 1500);
 }
 // Wire buttons via addEventListener (mobile-safe, avoids inline onclick issues)
 document.addEventListener('DOMContentLoaded', ()=>{
