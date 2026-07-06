@@ -203,16 +203,16 @@ let timerInterval = null;
 let secondsLeft = TIME_LIMIT;
 
 function startTimer(){
-  secondsLeft = TIME_LIMIT;
   document.getElementById('timer-box').style.display = 'flex';
   updateTimerDisplay();
   timerInterval = setInterval(()=>{
     secondsLeft--;
     updateTimerDisplay();
+    // Save state every 10 seconds to keep savedAt current
+    if(secondsLeft % 10 === 0) saveState();
     if(secondsLeft <= 0){
       clearInterval(timerInterval);
       timerInterval = null;
-      // Auto-submit when time runs out
       submitActivity(true);
     }
   }, 1000);
@@ -314,7 +314,7 @@ function goHome(){show('screen-register')}
 
 function saveState(){
   if(!studentData.nombre) return;
-  const state={studentData, activeClues, answers, submitted, secondsLeft};
+  const state={studentData, activeClues, answers, submitted, secondsLeft, savedAt: Date.now()};
   try{ localStorage.setItem('gamif_'+CURSO+'_'+studentData.nombre, JSON.stringify(state)); }catch(e){}
 }
 
@@ -339,14 +339,14 @@ function startActivity(){
   try{ const s = localStorage.getItem('gamif_'+CURSO+'_'+nombreCompleto); if(s) saved = JSON.parse(s); }catch(e){}
 
   if(saved && !saved.submitted){
-    // Restore previous session
+    // Restore previous session — subtract time elapsed while away
     studentData = saved.studentData;
     activeClues = saved.activeClues;
     answers     = saved.answers;
     submitted   = saved.submitted;
-    secondsLeft = saved.secondsLeft;
+    const elapsed = saved.savedAt ? Math.floor((Date.now() - saved.savedAt) / 1000) : 0;
+    secondsLeft = Math.max(0, saved.secondsLeft - elapsed);
   } else {
-    // New session
     studentData={nombre:nombreCompleto, dia, horario, curso:CURSO};
     answers={};submitted=false;
     secondsLeft = TIME_LIMIT;
