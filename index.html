@@ -186,7 +186,7 @@ header{background:var(--ink);color:var(--paper);padding:1.1rem 2rem;display:flex
 <script>
 const CLUES=[{"id":1,"word":"PREIMAGEN","clue":"Nombre de la variable independiente en una función."},{"id":2,"word":"ECUACIONLINEAL","clue":"Nombre de una ecuación polinómica de primer grado."},{"id":3,"word":"FUNCION","clue":"Nombre de la relación matemática entre dos conjuntos donde a cada elemento del primer conjunto le corresponde exactamente un elemento del segundo conjunto."},{"id":4,"word":"ECUACIONCUADRATICA","clue":"Nombre de una ecuación polinómica de segundo grado."},{"id":5,"word":"CONJUGADO","clue":"Nombre del factor de racionalización que se utiliza para simplificar fracciones que involucran sumas o restas con términos que contienen raíces cuadradas."},{"id":6,"word":"POLINOMIOCUADRATICO","clue":"Nombre general de un polinomio de segundo grado."},{"id":7,"word":"FACTORIZACION","clue":"Primer procedimiento que se realiza para aplicar una división o multiplicación de fracciones algebraicas."},{"id":8,"word":"RACIONALIZACION","clue":"Proceso de eliminar raíces cuadradas o cúbicas en el denominador de una fracción."},{"id":9,"word":"FACTORIZACION","clue":"Proceso de encontrar las raíces de un polinomio, expresándolo a través de un producto de factores."},{"id":10,"word":"SIMPLIFICACION","clue":"Proceso de reducir una fracción algebraica dividiendo el numerador y el denominador por sus factores comunes."},{"id":11,"word":"CONJUNTOVACIO","clue":"Término que describe el conjunto solución de una ecuación polinómica que no tiene soluciones reales."},{"id":12,"word":"REALES","clue":"Conjunto solución de una ecuación lineal cuando se llega a una identidad."},{"id":13,"word":"GRADO","clue":"Término que describe la suma de los exponentes en un monomio."},{"id":14,"word":"DIVISIONSINTETICA","clue":"Nombre de la factorización que se utiliza en polinomios de grado mayor a dos."},{"id":15,"word":"ECUACION","clue":"Nombre de la igualdad que se plantea para determinar los ceros de un polinomio."}];
 const PTS=10;
-const SCRIPT_URL="https://script.google.com/macros/s/AKfycbyMOv8u_PsmAo9Z_2rfvkbDv6k1HIVfPzHNL67EZcBHZv46HVjHS1XWaOJtfK7i7etbiQ/exec";
+const SCRIPT_URL="https://script.google.com/macros/s/AKfycbxwCi7_NjFSzwdfo3m25TW9evDYK5AZC6z_65R3y_iAHK8LnknrEoXz_uV0BgobDhJNjA/exec";
 const CURSO="Introducción al Cálculo";
 const CURSO_CORTO = {
   'Introducción al Cálculo': 'Intro',
@@ -346,11 +346,10 @@ function goHome(){show('screen-register')}
 
 function saveState(){
   if(!studentData.nombre) return;
-  const key = 'gamif_'+CURSO+'_'+studentData.nombre;
   try{
-    localStorage.setItem(key, JSON.stringify({studentData, activeClues, answers, submitted}));
-    console.log('Saved state, sessionCount=', studentData.sessionCount, 'key=', key);
-  }catch(e){ console.error('saveState error:', e); }
+    localStorage.setItem('gamif_'+CURSO+'_'+studentData.nombre,
+      JSON.stringify({studentData, activeClues, answers, submitted}));
+  }catch(e){}
 }
 
 function clearState(){
@@ -375,13 +374,11 @@ function startActivity(){
   try{ const s = localStorage.getItem(storageKey); if(s) saved = JSON.parse(s); }catch(e){}
 
   if(saved && !saved.submitted){
-    console.log('RESTORE: found saved state, sessionCount was', saved.studentData.sessionCount);
     studentData  = saved.studentData;
     activeClues  = saved.activeClues;
     answers      = saved.answers;
     submitted    = false;
     studentData.sessionCount = (studentData.sessionCount||1) + 1;
-    console.log('RESTORE: new sessionCount=', studentData.sessionCount);
     const totalElapsed = Math.floor((Date.now() - studentData.startedAt) / 1000);
     secondsLeft = Math.max(0, TIME_LIMIT - totalElapsed);
     // Grid uses only activeClues words — pass them directly
@@ -623,7 +620,6 @@ function syncProgress(tipo='progreso', score=null){
     tipo,
     nombre:       studentData.nombre,
     sesion:       studentData.sessionCount || 1,
-    sessionId:    studentData.startedAt,
     dia:          studentData.dia,
     horario:      studentData.horario,
     curso:        CURSO,
