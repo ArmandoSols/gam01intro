@@ -359,7 +359,6 @@ function clearState(){
 }
 
 function startActivity(){
-  try{
   const apellidos=document.getElementById('inp-apellidos').value.trim();
   const nombre=document.getElementById('inp-nombre').value.trim();
   const dia=document.getElementById('inp-dia').value;
@@ -368,72 +367,109 @@ function startActivity(){
     document.getElementById('reg-err').style.display='block';
     document.getElementById('reg-err').textContent='⚠ Por favor completa todos los campos.';return;}
   document.getElementById('reg-err').style.display='none';
+
   const nombreCompleto = apellidos + ', ' + nombre;
-  const storageKey = 'gamif_'+CURSO+'_'+nombreCompleto;
 
-  let saved = null;
-  try{ const s = localStorage.getItem(storageKey); if(s) saved = JSON.parse(s); }catch(e){}
+  // Build grid + clues for this student (always same seed = same questions)
+  const seed = hashStr(nombreCompleto+dia+horario+CURSO);
+  studentData = {
+    nombre: nombreCompleto, dia, horario, curso: CURSO,
+    startedAt: Date.now(), sessionCount: 1, seed
+  };
+  answers={};submitted=false;
+  secondsLeft = TIME_LIMIT;
 
-  if(saved && !saved.submitted){
-    console.log('RESTORE: found saved state, sessionCount was', saved.studentData.sessionCount);
-    studentData  = saved.studentData;
-    activeClues  = saved.activeClues;
-    answers      = saved.answers;
-    submitted    = false;
-    studentData.sessionCount = (studentData.sessionCount||1) + 1;
-    console.log('RESTORE: new sessionCount=', studentData.sessionCount);
-    const totalElapsed = Math.floor((Date.now() - studentData.startedAt) / 1000);
-    secondsLeft = Math.max(0, TIME_LIMIT - totalElapsed);
-    // Grid uses only activeClues words — pass them directly
-    grid=[];placedWords=[];
-    const rngGrid = makeRng(studentData.seed);
-    const gResult = buildGridFromWords(activeClues.map(c=>c.word), rngGrid);
-    grid=gResult.g;placedWords=gResult.placed;
-
-  } else {
-    const seed = hashStr(nombreCompleto+dia+horario+CURSO);
-    studentData = {
-      nombre: nombreCompleto,
-      dia, horario, curso: CURSO,
-      startedAt: Date.now(),
-      sessionCount: 1,
-      seed
-    };
-    answers={};submitted=false;
-    secondsLeft = TIME_LIMIT;
-
-    const rng=makeRng(seed);
-    const shuffledAll = seededShuffle([...CLUES], rng);
-    const seenWords = new Set();
-    const pickedClues = [];
-    for(const c of shuffledAll){
-      if(seenWords.has(c.word)) continue;
-      seenWords.add(c.word);
-      pickedClues.push(c);
-      if(pickedClues.length >= WORDS_PER_STUDENT) break;
-    }
-    activeClues = seededShuffle(pickedClues, rng).map((c,i)=>({...c, displayId:i+1}));
-    activeClues.forEach(c=>{answers[c.displayId]={attempts:[],correct:false,attemptsUsed:0,word:c.word,nearlyCorrect:false};});
-
-    const{g,placed}=buildGrid(rng);
-    grid=g;placedWords=placed;
+  const rng=makeRng(seed);
+  const shuffledAll = seededShuffle([...CLUES], rng);
+  const seenWords = new Set();
+  const pickedClues = [];
+  for(const c of shuffledAll){
+    if(seenWords.has(c.word)) continue;
+    seenWords.add(c.word);
+    pickedClues.push(c);
+    if(pickedClues.length >= WORDS_PER_STUDENT) break;
   }
+  activeClues = seededShuffle(pickedClues, rng).map((c,i)=>({...c, displayId:i+1}));
+  activeClues.forEach(c=>{answers[c.displayId]={attempts:[],correct:false,attemptsUsed:0,word:c.word,nearlyCorrect:false};});
+  const{g,placed}=buildGrid(rng);
+  grid=g;placedWords=placed;
 
-  saveState();
-  console.log('AFTER RESTORE: answers keys=', Object.keys(answers), 'sample=', JSON.stringify(Object.values(answers)[0]));
-  document.getElementById('disp-dia').textContent=studentData.dia;
-  document.getElementById('disp-horario').textContent=studentData.horario;
-  document.getElementById('disp-sesion').textContent=studentData.sessionCount;
-  document.getElementById('score-box').style.display='none';
-  document.getElementById('submit-btn').disabled=false;
-  document.getElementById('submit-btn').textContent='✔ Entregar Actividad';
+  // Show loading state
+  const btn = document.getElementById('btn-start');
+  btn.disabled=true;
+  btn.textContent='Cargando…';
 
-  renderGrid();renderClues();updateProgress();
-  startTimer();
-  show('screen-puzzle');
-  }catch(err){
+  // Query Sheets to restore previous progress (works on any browser)
+  const restoreAndLaunch = (answered) => {
+    if(answered && Object.keys(answered).length > 0){
+      // Match P1,P2,... to activeClues by position
+      activeClues.forEach((item, idx) => {
+        const key = 'P'+(idx+1);
+        const cell = answered[key];
+        if(!cell || cell==='—') return;
+        const state = answers[item.displayId];
+        if(cell.includes('✓')){
+          // Correct answer
+          const attempt = cell.replace(' ✓','').trim();
+          state.correct=true;
+          state.attemptsUsed=1;
+          state.attempts=[attempt];
+        } else if(cell.includes('✗')){
+          // Failed all attempts
+          state.attemptsUsed=2;
+          const parts = cell.split(' ✗')[0].split(' → ');
+          state.attempts=parts;
+        } else if(cell.includes(' → ')){
+          // One attempt used, still going
+          state.attemptsUsed=1;
+          state.attempts=[cell.split(' → ')[0].trim()];
+        }
+      });
+      studentData.sessionCount = 2;
+    }
+
+    btn.disabled=false;
+    btn.textContent='▶ Comenzar Actividad';
+
+    document.getElementById('disp-nombre').textContent=studentData.nombre;
+    document.getElementById('disp-dia').textContent=studentData.dia;
+    document.getElementById('disp-horario').textContent=studentData.horario;
+    document.getElementById('disp-sesion').textContent=studentData.sessionCount;
+    document.getElementById('score-box').style.display='none';
+    document.getElementById('submit-btn').disabled=false;
+    document.getElementById('submit-btn').textContent='✔ Entregar Actividad';
+
+    renderGrid();renderClues();updateProgress();
+    startTimer();
+    show('screen-puzzle');
+  };
+
+  // Try to fetch previous answers from Sheets
+  if(SCRIPT_URL){
+    const url = SCRIPT_URL.replace('/exec','') + '/exec?nombre='+encodeURIComponent(nombreCompleto)
+      +'&dia='+encodeURIComponent(dia)
+      +'&horario='+encodeURIComponent(horario)
+      +'&cursoCorto='+encodeURIComponent(CURSO_CORTO);
     document.getElementById('reg-err').style.display='block';
-    document.getElementById('reg-err').textContent='Error: '+err.message;
+    document.getElementById('reg-err').style.color='#1a7a6e';
+    document.getElementById('reg-err').textContent='Verificando progreso anterior…';
+    fetch(url)
+      .then(r=>r.json())
+      .then(data=>{
+        document.getElementById('reg-err').style.display='none';
+        restoreAndLaunch(data.found ? data.answered : null);
+      })
+      .catch(err=>{
+        document.getElementById('reg-err').style.display='block';
+        document.getElementById('reg-err').style.color='#c0392b';
+        document.getElementById('reg-err').textContent='No se pudo verificar progreso: '+err.message+'. Iniciando desde cero.';
+        setTimeout(()=>{
+          document.getElementById('reg-err').style.display='none';
+          restoreAndLaunch(null);
+        }, 2000);
+      });
+  } else {
+    restoreAndLaunch(null);
   }
 }
 
