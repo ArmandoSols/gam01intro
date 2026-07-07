@@ -346,10 +346,11 @@ function goHome(){show('screen-register')}
 
 function saveState(){
   if(!studentData.nombre) return;
+  const key = 'gamif_'+CURSO+'_'+studentData.nombre;
   try{
-    localStorage.setItem('gamif_'+CURSO+'_'+studentData.nombre,
-      JSON.stringify({studentData, activeClues, answers, submitted}));
-  }catch(e){}
+    localStorage.setItem(key, JSON.stringify({studentData, activeClues, answers, submitted}));
+    console.log('Saved state, sessionCount=', studentData.sessionCount, 'key=', key);
+  }catch(e){ console.error('saveState error:', e); }
 }
 
 function clearState(){
@@ -374,11 +375,13 @@ function startActivity(){
   try{ const s = localStorage.getItem(storageKey); if(s) saved = JSON.parse(s); }catch(e){}
 
   if(saved && !saved.submitted){
+    console.log('RESTORE: found saved state, sessionCount was', saved.studentData.sessionCount);
     studentData  = saved.studentData;
     activeClues  = saved.activeClues;
     answers      = saved.answers;
     submitted    = false;
     studentData.sessionCount = (studentData.sessionCount||1) + 1;
+    console.log('RESTORE: new sessionCount=', studentData.sessionCount);
     const totalElapsed = Math.floor((Date.now() - studentData.startedAt) / 1000);
     secondsLeft = Math.max(0, TIME_LIMIT - totalElapsed);
     // Grid uses only activeClues words — pass them directly
