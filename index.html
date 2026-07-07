@@ -345,20 +345,17 @@ function startActivity(){
 
   if(saved && !saved.submitted){
     // ── RESTORE SESSION ──
-    // 1. Restore all data exactly as saved
     studentData  = saved.studentData;
     activeClues  = saved.activeClues;
     answers      = saved.answers;
     submitted    = false;
-    // 2. Increment session counter
     studentData.sessionCount = (studentData.sessionCount||1) + 1;
-    // 3. Calculate real secondsLeft based on startedAt timestamp
+    // Timer based on real wall-clock time
     const totalElapsed = Math.floor((Date.now() - studentData.startedAt) / 1000);
     secondsLeft = Math.max(0, TIME_LIMIT - totalElapsed);
-    // 4. Rebuild grid from saved seed (same questions guaranteed)
-    const rng = makeRng(studentData.seed);
-    seededShuffle([...CLUES], rng); // consume same random draws to align rng state
-    const{g,placed}=buildGrid(rng);
+    // Rebuild grid from saved seed
+    const rngGrid = makeRng(studentData.seed);
+    const{g,placed}=buildGrid(rngGrid);
     grid=g;placedWords=placed;
 
   } else {
@@ -367,7 +364,7 @@ function startActivity(){
     studentData = {
       nombre: nombreCompleto,
       dia, horario, curso: CURSO,
-      startedAt: Date.now(),  // real wall-clock start time
+      startedAt: Date.now(),
       sessionCount: 1,
       seed
     };
@@ -391,7 +388,6 @@ function startActivity(){
     grid=g;placedWords=placed;
   }
 
-  // Save immediately so sessionCount is persisted
   saveState();
 
   document.getElementById('disp-nombre').textContent=studentData.nombre;
