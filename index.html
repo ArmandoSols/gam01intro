@@ -315,7 +315,7 @@ function goHome(){show('screen-register')}
 
 function saveState(){
   if(!studentData.nombre) return;
-  const state={studentData, activeClues, answers, submitted, secondsLeft, savedAt: Date.now(), sessionCount: (studentData.sessionCount||1)};
+  const state={studentData, activeClues, answers, submitted, secondsLeft, savedAt: Date.now(), sessionCount: studentData.sessionCount||1, seed: studentData.seed};
   try{ localStorage.setItem('gamif_'+CURSO+'_'+studentData.nombre, JSON.stringify(state)); }catch(e){}
 }
 
@@ -341,21 +341,30 @@ function startActivity(){
 
   if(saved && !saved.submitted){
     studentData = saved.studentData;
-    studentData.sessionCount = (saved.sessionCount||1) + 1;
+    studentData.sessionCount = (saved.studentData.sessionCount||1) + 1;
     activeClues = saved.activeClues;
     answers     = saved.answers;
     submitted   = saved.submitted;
     const elapsed = saved.savedAt ? Math.floor((Date.now() - saved.savedAt) / 1000) : 0;
     secondsLeft = Math.max(0, saved.secondsLeft - elapsed);
-    // Keep original startedAt so total time is accurate
     if(!studentData.startedAt) studentData.startedAt = Date.now() - ((TIME_LIMIT - saved.secondsLeft) * 1000);
+    // Restore grid from saved seed
+    if(saved.seed){
+      const rng=makeRng(saved.seed);
+      // rebuild grid same way
+      seededShuffle([...CLUES], rng);
+      const{g,placed}=buildGrid(rng);
+      grid=g;placedWords=placed;
+    }
   } else {
     studentData={nombre:nombreCompleto, dia, horario, curso:CURSO};
     studentData.startedAt = Date.now();
+    studentData.sessionCount = 1;
     answers={};submitted=false;
     secondsLeft = TIME_LIMIT;
 
     const seed=hashStr(nombre.toLowerCase()+dia+horario+String(Math.floor(Date.now()/60000)));
+    studentData.seed = seed; // save seed so questions are identical on restore
     const rng=makeRng(seed);
     const shuffledAll = seededShuffle([...CLUES], rng);
     const seenWords = new Set();
