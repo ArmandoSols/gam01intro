@@ -186,7 +186,7 @@ header{background:var(--ink);color:var(--paper);padding:1.1rem 2rem;display:flex
 <script>
 const CLUES=[{"id":1,"word":"PREIMAGEN","clue":"Nombre de la variable independiente en una función."},{"id":2,"word":"ECUACIONLINEAL","clue":"Nombre de una ecuación polinómica de primer grado."},{"id":3,"word":"FUNCION","clue":"Nombre de la relación matemática entre dos conjuntos donde a cada elemento del primer conjunto le corresponde exactamente un elemento del segundo conjunto."},{"id":4,"word":"ECUACIONCUADRATICA","clue":"Nombre de una ecuación polinómica de segundo grado."},{"id":5,"word":"CONJUGADO","clue":"Nombre del factor de racionalización que se utiliza para simplificar fracciones que involucran sumas o restas con términos que contienen raíces cuadradas."},{"id":6,"word":"POLINOMIOCUADRATICO","clue":"Nombre general de un polinomio de segundo grado."},{"id":7,"word":"FACTORIZACION","clue":"Primer procedimiento que se realiza para aplicar una división o multiplicación de fracciones algebraicas."},{"id":8,"word":"RACIONALIZACION","clue":"Proceso de eliminar raíces cuadradas o cúbicas en el denominador de una fracción."},{"id":9,"word":"FACTORIZACION","clue":"Proceso de encontrar las raíces de un polinomio, expresándolo a través de un producto de factores."},{"id":10,"word":"SIMPLIFICACION","clue":"Proceso de reducir una fracción algebraica dividiendo el numerador y el denominador por sus factores comunes."},{"id":11,"word":"CONJUNTOVACIO","clue":"Término que describe el conjunto solución de una ecuación polinómica que no tiene soluciones reales."},{"id":12,"word":"REALES","clue":"Conjunto solución de una ecuación lineal cuando se llega a una identidad."},{"id":13,"word":"GRADO","clue":"Término que describe la suma de los exponentes en un monomio."},{"id":14,"word":"DIVISIONSINTETICA","clue":"Nombre de la factorización que se utiliza en polinomios de grado mayor a dos."},{"id":15,"word":"ECUACION","clue":"Nombre de la igualdad que se plantea para determinar los ceros de un polinomio."}];
 const PTS=10;
-const SCRIPT_URL="https://script.google.com/macros/s/AKfycbxYVaLxnAnpD-mZFvarv6zN4-xbHGvQHlNhTVBMyjjmx_zlRmFaEztsMVeNejIhViVtcQ/exec";
+const SCRIPT_URL="https://script.google.com/macros/s/AKfycbysnKkXAeFxhZNKlnZOCkoNR6OUkvA3hDivBupIPNWIOWxZuff76CnCVzB_1OKhiYQZ/exec";
 const CURSO="Introducción al Cálculo";
 const CURSO_CORTO = {
   'Introducción al Cálculo': 'Intro',
@@ -400,32 +400,34 @@ function startActivity(){
   btn.textContent='Cargando…';
 
   // Query Sheets to restore previous progress (works on any browser)
-  const restoreAndLaunch = (answered) => {
+  const restoreAndLaunch = (answered, startedAt) => {
     if(answered && Object.keys(answered).length > 0){
-      // Match P1,P2,... to activeClues by position
       activeClues.forEach((item, idx) => {
         const key = 'P'+(idx+1);
         const cell = answered[key];
         if(!cell || cell==='—') return;
         const state = answers[item.displayId];
         if(cell.includes('✓')){
-          // Correct answer
-          const attempt = cell.replace(' ✓','').trim();
+          const attempt = cell.replace(' ✓','').split(' → ').pop().trim();
           state.correct=true;
           state.attemptsUsed=1;
           state.attempts=[attempt];
         } else if(cell.includes('✗')){
-          // Failed all attempts
           state.attemptsUsed=2;
-          const parts = cell.split(' ✗')[0].split(' → ');
-          state.attempts=parts;
-        } else if(cell.includes(' → ')){
-          // One attempt used, still going
+          const intentsPart = cell.split(' ✗')[0];
+          state.attempts = intentsPart.split(' → ').map(s=>s.trim());
+        } else {
           state.attemptsUsed=1;
-          state.attempts=[cell.split(' → ')[0].trim()];
+          state.attempts = cell.split(' → ').map(s=>s.trim());
         }
       });
       studentData.sessionCount = 2;
+      // Restore real start time so timer continues from where they left off
+      if(startedAt && startedAt > 0){
+        studentData.startedAt = startedAt;
+        const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+        secondsLeft = Math.max(0, TIME_LIMIT - elapsed);
+      }
     }
 
     btn.disabled=false;
@@ -442,6 +444,8 @@ function startActivity(){
     renderGrid();renderClues();updateProgress();
     startTimer();
     show('screen-puzzle');
+    // Register student immediately even before answering
+    setTimeout(()=>syncProgress('progreso'), 1500);
   };
 
   // Try to fetch previous answers from Sheets
@@ -457,7 +461,7 @@ function startActivity(){
       .then(r=>r.json())
       .then(data=>{
         document.getElementById('reg-err').style.display='none';
-        restoreAndLaunch(data.found ? data.answered : null);
+        restoreAndLaunch(data.found ? data.answered : null, data.found ? data.startedAt : null);
       })
       .catch(err=>{
         document.getElementById('reg-err').style.display='block';
@@ -465,11 +469,11 @@ function startActivity(){
         document.getElementById('reg-err').textContent='No se pudo verificar progreso: '+err.message+'. Iniciando desde cero.';
         setTimeout(()=>{
           document.getElementById('reg-err').style.display='none';
-          restoreAndLaunch(null);
+          restoreAndLaunch(null, null);
         }, 2000);
       });
   } else {
-    restoreAndLaunch(null);
+    restoreAndLaunch(null, null);
   }
 }
 
@@ -658,7 +662,7 @@ function syncProgress(tipo='progreso', score=null){
     tipo,
     nombre:       studentData.nombre,
     sesion:       studentData.sessionCount || 1,
-    sessionId:    studentData.startedAt,
+    startedAt:    studentData.startedAt,
     dia:          studentData.dia,
     horario:      studentData.horario,
     curso:        CURSO,
