@@ -207,9 +207,7 @@ function startTimer(){
   document.getElementById('timer-box').style.display = 'flex';
   updateTimerDisplay();
   timerInterval = setInterval(()=>{
-    // Always calculate from real wall-clock time so salir/volver doesn't cheat
-    const elapsed = Math.floor((Date.now() - studentData.startedAt) / 1000);
-    secondsLeft = Math.max(0, TIME_LIMIT - elapsed);
+    secondsLeft--;
     updateTimerDisplay();
     if(secondsLeft % 10 === 0) saveState();
     if(secondsLeft <= 0){
@@ -400,7 +398,7 @@ function startActivity(){
   btn.textContent='Cargando…';
 
   // Query Sheets to restore previous progress (works on any browser)
-  const restoreAndLaunch = (answered, startedAt) => {
+  const restoreAndLaunch = (answered) => {
     if(answered && Object.keys(answered).length > 0){
       activeClues.forEach((item, idx) => {
         const key = 'P'+(idx+1);
@@ -422,12 +420,6 @@ function startActivity(){
         }
       });
       studentData.sessionCount = 2;
-      // Restore real start time so timer continues from where they left off
-      if(startedAt && startedAt > 0){
-        studentData.startedAt = startedAt;
-        const elapsed = Math.floor((Date.now() - startedAt) / 1000);
-        secondsLeft = Math.max(0, TIME_LIMIT - elapsed);
-      }
     }
 
     btn.disabled=false;
@@ -461,7 +453,7 @@ function startActivity(){
       .then(r=>r.json())
       .then(data=>{
         document.getElementById('reg-err').style.display='none';
-        restoreAndLaunch(data.found ? data.answered : null, data.found ? data.startedAt : null);
+        restoreAndLaunch(data.found ? data.answered : null);
       })
       .catch(err=>{
         document.getElementById('reg-err').style.display='block';
@@ -469,11 +461,11 @@ function startActivity(){
         document.getElementById('reg-err').textContent='No se pudo verificar progreso: '+err.message+'. Iniciando desde cero.';
         setTimeout(()=>{
           document.getElementById('reg-err').style.display='none';
-          restoreAndLaunch(null, null);
+          restoreAndLaunch(null);
         }, 2000);
       });
   } else {
-    restoreAndLaunch(null, null);
+    restoreAndLaunch(null);
   }
 }
 
@@ -637,11 +629,7 @@ function calcScore(){
 // Builds the progress payload and sends it to Sheets (fire-and-forget)
 function syncProgress(tipo='progreso', score=null){
   if(!SCRIPT_URL) return;
-  // Calculate real elapsed time using timestamp, not countdown
-  const realElapsed = studentData.startedAt
-    ? Math.floor((Date.now() - studentData.startedAt) / 1000)
-    : (TIME_LIMIT - secondsLeft);
-  const segundosUsados = Math.min(realElapsed, TIME_LIMIT);
+  const segundosUsados = Math.min(TIME_LIMIT - secondsLeft, TIME_LIMIT);
   const mm = Math.floor(segundosUsados/60);
   const ss2 = segundosUsados%60;
   const tiempoUsado = String(mm).padStart(2,'0')+':'+String(ss2).padStart(2,'0');
@@ -662,7 +650,6 @@ function syncProgress(tipo='progreso', score=null){
     tipo,
     nombre:       studentData.nombre,
     sesion:       studentData.sessionCount || 1,
-    startedAt:    studentData.startedAt,
     dia:          studentData.dia,
     horario:      studentData.horario,
     curso:        CURSO,
